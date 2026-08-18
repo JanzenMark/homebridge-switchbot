@@ -1378,6 +1378,10 @@ export class Hub2Device extends GenericDevice {}
 
 /** CO2 level in ppm at or above which HomeKit is told the level is abnormal. */
 const CO2_ABNORMAL_PPM = 1000
+/** Battery percentage at or below which HomeKit is told the battery is low. */
+const BATTERY_LOW_PERCENT = 10
+/** HomeKit ChargingState.NOT_CHARGEABLE - these meters take replaceable cells. */
+const NOT_CHARGEABLE = 2
 
 export class MeterDevice extends GenericDevice {
   /**
@@ -1390,6 +1394,10 @@ export class MeterDevice extends GenericDevice {
   }
 
   createHAPAccessory(api: any) {
+    const battery = async (): Promise<number | undefined> => {
+      const s = await this.getState()
+      return typeof s.battery === 'number' ? s.battery : undefined
+    }
     const services: any[] = [
       {
         type: 'TemperatureSensor',
@@ -1410,6 +1418,26 @@ export class MeterDevice extends GenericDevice {
               const s = await this.getState()
               return typeof s.humidity === 'number' ? s.humidity : 0
             },
+          },
+        },
+      },
+      {
+        type: 'Battery',
+        characteristics: {
+          BatteryLevel: {
+            // An unknown level reports as full rather than empty: 0 % would
+            // raise a low-battery alert on every device that does not report
+            // a level, which is worse than showing nothing useful.
+            get: async () => (await battery()) ?? 100,
+          },
+          StatusLowBattery: {
+            get: async () => {
+              const level = await battery()
+              return level !== undefined && level <= BATTERY_LOW_PERCENT ? 1 : 0
+            },
+          },
+          ChargingState: {
+            get: async () => NOT_CHARGEABLE,
           },
         },
       },
