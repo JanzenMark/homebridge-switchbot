@@ -186,7 +186,48 @@ export class GenericDevice extends DeviceBase {
     })
   }
 
+  /**
+   * How long a fetched state is reused. HomeKit reads every characteristic of an
+   * accessory at once, so without this a single read costs one API call per
+   * characteristic - seven for a Meter Pro (CO2) with battery. That is slow
+   * enough for Homebridge to warn about the read handler, and it burns through
+   * the SwitchBot daily request allowance.
+   */
+  private static readonly STATE_TTL_MS = 15_000
+
+  /** Returned by fetchState() when no reading could be obtained. */
+  protected static readonly UNREADABLE = Symbol('unreadable')
+
+  private stateCache?: { at: number, value: any }
+  private stateInFlight?: Promise<any>
+
   async getState(): Promise<any> {
+    const fresh = this.stateCache && (Date.now() - this.stateCache.at) < GenericDevice.STATE_TTL_MS
+    if (fresh) {
+      return this.stateCache!.value
+    }
+    // Collapse the burst of concurrent reads HomeKit makes into one fetch.
+    if (this.stateInFlight) {
+      return this.stateInFlight
+    }
+    this.stateInFlight = this.fetchState()
+      .then((value) => {
+        // A failed fetch must not be cached: doing so would pin every
+        // characteristic at its fallback for the whole window after a single
+        // transient error.
+        if (value === GenericDevice.UNREADABLE) {
+          return { id: this.opts.id, type: this.opts.type }
+        }
+        this.stateCache = { at: Date.now(), value }
+        return value
+      })
+      .finally(() => {
+        this.stateInFlight = undefined
+      })
+    return this.stateInFlight
+  }
+
+  protected async fetchState(): Promise<any> {
     // Default: return minimal info; implementations should override
     if (this.client && typeof this.client.getDevice === 'function') {
       try {
@@ -229,7 +270,7 @@ export class GenericDevice extends DeviceBase {
         // ignore and fallback
       }
     }
-    return { id: this.opts.id, type: this.opts.type }
+    return GenericDevice.UNREADABLE
   }
 
   async setState(change: any): Promise<any> {
