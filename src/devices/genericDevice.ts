@@ -190,6 +190,12 @@ export class GenericDevice extends DeviceBase {
     // Default: return minimal info; implementations should override
     if (this.client && typeof this.client.getDevice === 'function') {
       try {
+        // The platform starts init() without awaiting it, so a read can arrive
+        // before the client exists. init() returns immediately once built, so
+        // awaiting it here costs nothing and stops the first read reporting 0.
+        if (typeof this.client.init === 'function') {
+          await this.client.init()
+        }
         const raw = await this.client.getDevice(this.opts.id)
         // If this is a BLE buffer/array, validate length (common BLE status: 12 bytes, but may vary by device)
         if (raw && (raw instanceof Buffer || Array.isArray(raw) || raw instanceof Uint8Array)) {

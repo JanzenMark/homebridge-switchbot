@@ -44,7 +44,21 @@ export class SwitchBotClient implements ISwitchBotClient {
     if (this.client) {
       return
     }
+    // Callers may race: the platform kicks init off without awaiting it while a
+    // characteristic read awaits it. Share one in-flight attempt so concurrent
+    // callers cannot each build a client (and each start a BLE scanner).
+    if (this.initPromise) {
+      return this.initPromise
+    }
+    this.initPromise = this.doInit().finally(() => {
+      this.initPromise = undefined
+    })
+    return this.initPromise
+  }
 
+  private initPromise?: Promise<void>
+
+  private async doInit(): Promise<void> {
     try {
       // Dynamic import of node-switchbot v4 with native resilience features
       const { SwitchBot } = await import('node-switchbot')
