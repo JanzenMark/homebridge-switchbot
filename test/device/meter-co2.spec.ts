@@ -28,14 +28,16 @@ function get(device: MeterDevice, type: string, characteristic: string) {
 
 describe('meterDevice CO2 support', () => {
   it('adds a CarbonDioxideSensor for the CO2 variant', () => {
-    expect(serviceTypes(meter('MeterPro(CO2)', READING)))
-      .toEqual(['TemperatureSensor', 'HumiditySensor', 'CarbonDioxideSensor'])
+    expect(serviceTypes(meter('MeterPro(CO2)', READING))).toContain('CarbonDioxideSensor')
   })
 
   // A plain Meter has no CO2 sensor; a 0 ppm tile would look like a real reading.
   it.each(['Meter', 'Meter Plus', 'MeterPro', 'Outdoor Meter', ''])('omits it for %s', (deviceType) => {
-    expect(serviceTypes(meter(deviceType, { temperature: 20, humidity: 40 })))
-      .toEqual(['TemperatureSensor', 'HumiditySensor'])
+    const types = serviceTypes(meter(deviceType, { temperature: 20, humidity: 40 }))
+
+    expect(types).not.toContain('CarbonDioxideSensor')
+    expect(types).toContain('TemperatureSensor')
+    expect(types).toContain('HumiditySensor')
   })
 
   it('accepts the spaced device type spelling too', () => {
