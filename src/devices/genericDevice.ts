@@ -216,7 +216,10 @@ export class GenericDevice extends DeviceBase {
         // characteristic at its fallback for the whole window after a single
         // transient error.
         if (value === GenericDevice.UNREADABLE) {
-          return { id: this.opts.id, type: this.opts.type }
+          // Marked so a caller pushing values to HomeKit can skip it. The
+          // characteristic getters still coalesce the missing fields to 0,
+          // because a HomeKit read must return something.
+          return { id: this.opts.id, type: this.opts.type, unreadable: true }
         }
         this.stateCache = { at: Date.now(), value }
         return value
@@ -261,6 +264,10 @@ export class GenericDevice extends DeviceBase {
             } catch (e: any) {
               this.log?.debug?.(`getState: getStatus() failed for ${this.opts.id}:`, e instanceof Error ? e.message : e)
             }
+            // A device that can report status but did not is unreadable.
+            // Returning the instance would look like a valid state whose every
+            // reading happens to be missing, and callers would report defaults.
+            return GenericDevice.UNREADABLE
           }
           return device
         } catch (e) {
@@ -1405,7 +1412,7 @@ export class MeterDevice extends GenericDevice {
           CurrentTemperature: {
             get: async () => {
               const s = await this.getState()
-              return typeof s.temperature === 'number' ? s.temperature : 0
+              return typeof s.temperature === 'number' ? s.temperature : undefined
             },
           },
         },
@@ -1416,7 +1423,7 @@ export class MeterDevice extends GenericDevice {
           CurrentRelativeHumidity: {
             get: async () => {
               const s = await this.getState()
-              return typeof s.humidity === 'number' ? s.humidity : 0
+              return typeof s.humidity === 'number' ? s.humidity : undefined
             },
           },
         },
@@ -1428,12 +1435,12 @@ export class MeterDevice extends GenericDevice {
             // An unknown level reports as full rather than empty: 0 % would
             // raise a low-battery alert on every device that does not report
             // a level, which is worse than showing nothing useful.
-            get: async () => (await battery()) ?? 100,
+            get: async () => await battery(),
           },
           StatusLowBattery: {
             get: async () => {
               const level = await battery()
-              return level !== undefined && level <= BATTERY_LOW_PERCENT ? 1 : 0
+              return level === undefined ? undefined : (level <= BATTERY_LOW_PERCENT ? 1 : 0)
             },
           },
           ChargingState: {
@@ -1452,12 +1459,12 @@ export class MeterDevice extends GenericDevice {
         type: 'CarbonDioxideSensor',
         characteristics: {
           CarbonDioxideLevel: {
-            get: async () => (await co2()) ?? 0,
+            get: async () => await co2(),
           },
           CarbonDioxideDetected: {
             get: async () => {
               const level = await co2()
-              return level !== undefined && level >= CO2_ABNORMAL_PPM ? 1 : 0
+              return level === undefined ? undefined : (level >= CO2_ABNORMAL_PPM ? 1 : 0)
             },
           },
         },

@@ -56,7 +56,7 @@ describe('genericDevice.getState caching', () => {
     const first = await d.getState()
     const second = await d.getState()
 
-    expect(first).toEqual({ id: 'x', type: 'meter' })
+    expect(first).toEqual({ id: 'x', type: 'meter', unreadable: true })
     expect(second.temperature).toBe(21)
   })
 })

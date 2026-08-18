@@ -57,11 +57,13 @@ describe('meterDevice CO2 support', () => {
     await expect(get(meter('MeterPro(CO2)', { ...READING, co2 }), 'CarbonDioxideSensor', 'CarbonDioxideDetected')).resolves.toBe(expected)
   })
 
-  it('reports 0 and normal when the reading is missing', async () => {
+  // Reporting 0 ppm would be indistinguishable from a working sensor in clean
+  // air. undefined lets the platform tell HomeKit the value is unavailable.
+  it('reports the reading as unknown when it is missing', async () => {
     const device = meter('MeterPro(CO2)', { temperature: 22, humidity: 50 })
 
-    await expect(get(device, 'CarbonDioxideSensor', 'CarbonDioxideLevel')).resolves.toBe(0)
-    await expect(get(device, 'CarbonDioxideSensor', 'CarbonDioxideDetected')).resolves.toBe(0)
+    await expect(get(device, 'CarbonDioxideSensor', 'CarbonDioxideLevel')).resolves.toBeUndefined()
+    await expect(get(device, 'CarbonDioxideSensor', 'CarbonDioxideDetected')).resolves.toBeUndefined()
   })
 
   it('still reports temperature and humidity', async () => {

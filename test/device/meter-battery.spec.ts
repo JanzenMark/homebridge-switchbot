@@ -48,9 +48,9 @@ describe('meterDevice battery support', () => {
     ['absent', {}],
     ['null', { battery: null }],
     ['non-numeric', { battery: 'full' }],
-  ])('reports full and normal when the level is %s', async (_label, status) => {
-    await expect(get(meter(status), 'BatteryLevel')).resolves.toBe(100)
-    await expect(get(meter(status), 'StatusLowBattery')).resolves.toBe(0)
+  ])('reports the level as unknown when it is %s', async (_label, status) => {
+    await expect(get(meter(status), 'BatteryLevel')).resolves.toBeUndefined()
+    await expect(get(meter(status), 'StatusLowBattery')).resolves.toBeUndefined()
   })
 
   it('reports the battery as not chargeable', async () => {

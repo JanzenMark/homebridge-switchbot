@@ -30,7 +30,9 @@ describe('genericDevice.getState', () => {
     expect(state.co2).toBe(483)
   })
 
-  it('falls back to the device object when getStatus() throws', async () => {
+  // The device instance carries no readings, so returning it would look like a
+  // valid state and every getter would report its default.
+  it('reports unreadable when getStatus() throws', async () => {
     const state = await deviceWith(() => ({
       id: 'B0E9FED044E3',
       deviceType: 'MeterPro(CO2)',
@@ -39,20 +41,20 @@ describe('genericDevice.getState', () => {
       },
     })).getState()
 
-    expect(state.id).toBe('B0E9FED044E3')
+    expect(state.unreadable).toBe(true)
     expect(log.debug).toHaveBeenCalled()
   })
 
   it.each([
     ['null', null],
     ['a non-object', 'nope'],
-  ])('falls back to the device object when getStatus() returns %s', async (_label, returned) => {
+  ])('reports unreadable when getStatus() returns %s', async (_label, returned) => {
     const state = await deviceWith(() => ({
       id: 'B0E9FED044E3',
       getStatus: async () => returned,
     })).getState()
 
-    expect(state.id).toBe('B0E9FED044E3')
+    expect(state.unreadable).toBe(true)
   })
 
   it('passes through plain status objects that have no getStatus()', async () => {

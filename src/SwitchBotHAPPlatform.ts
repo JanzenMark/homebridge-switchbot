@@ -42,7 +42,7 @@ export class SwitchBotHAPPlatform {
   /** Interval for periodic config reload */
   private configReloadInterval: NodeJS.Timeout | null = null
   /** Registered HAP characteristics per device id, so polls can push new values */
-  private hapPushTargets: Map<string, Array<{ service: any, characteristic: any, get: () => Promise<any> }>> = new Map()
+  private hapPushTargets: Map<string, { device: any, entries: Array<{ service: any, characteristic: any, get: () => Promise<any> }> }> = new Map()
 
   /** Timers for per-device OpenAPI polling */
   private openApiPollTimers: Map<string, NodeJS.Timeout> = new Map()
@@ -308,13 +308,23 @@ export class SwitchBotHAPPlatform {
                 }
               }
               if (getterSetter && typeof getterSetter.get === 'function') {
-                service.getCharacteristic(Characteristic).onGet(getterSetter.get)
+                // A getter returns undefined when the value is not known. Tell
+                // HomeKit the value is unavailable rather than reporting 0: the
+                // Home app shows "No Response" instead of a reading that looks
+                // real, and a genuine 0 stays distinguishable from a failure.
+                service.getCharacteristic(Characteristic).onGet(async () => {
+                  const value = await getterSetter.get()
+                  if (value === undefined || value === null) {
+                    throw new (hap as any).HapStatusError((hap as any).HAPStatus.SERVICE_COMMUNICATION_FAILURE)
+                  }
+                  return value
+                })
                 // Remember it so a poll can push the new value. Without this the
                 // Home app only ever shows the value it was last told, which can
                 // be indefinitely stale.
-                const targets = this.hapPushTargets.get(d.id) ?? []
-                targets.push({ service, characteristic: Characteristic, get: getterSetter.get })
-                this.hapPushTargets.set(d.id, targets)
+                const target = this.hapPushTargets.get(d.id) ?? { device: created, entries: [] }
+                target.entries.push({ service, characteristic: Characteristic, get: getterSetter.get })
+                this.hapPushTargets.set(d.id, target)
               }
               if (getterSetter && typeof getterSetter.set === 'function') {
                 service.getCharacteristic(Characteristic).onSet(async (value: any) => {
@@ -459,19 +469,37 @@ export class SwitchBotHAPPlatform {
    * API request no matter how many characteristics the accessory has.
    */
   private async _pushDeviceState(id: string): Promise<void> {
-    const targets = this.hapPushTargets.get(id)
-    if (!targets?.length) {
+    const target = this.hapPushTargets.get(id)
+    if (!target?.entries.length) {
       return
     }
-    for (const { service, characteristic, get } of targets) {
+    // Read once up front. If the device could not be read, push nothing: the
+    // getters report 0 for missing fields, and pushing that would replace a
+    // good value in HomeKit with a plausible-looking 0 that persists.
+    try {
+      const state = await target.device?.getState?.()
+      if (state?.unreadable) {
+        this.log.debug?.(`Skipped pushing updates for ${id}: device not readable`)
+        return
+      }
+    } catch (e) {
+      this.log.debug?.(`Skipped pushing updates for ${id}:`, (e as Error)?.message)
+      return
+    }
+    const pushed: string[] = []
+    for (const { service, characteristic, get } of target.entries) {
       try {
         const value = await get()
         if (value !== undefined && value !== null) {
           service.getCharacteristic(characteristic).updateValue(value)
+          pushed.push(`${(characteristic as any)?.name ?? 'value'}=${value}`)
         }
       } catch (e) {
         this.log.debug?.(`Failed to push an update for ${id}:`, (e as Error)?.message)
       }
+    }
+    if (pushed.length) {
+      this.log.info(`[HAP] Pushed ${pushed.length} values for ${id}: ${pushed.join(', ')}`)
     }
   }
 

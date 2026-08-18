@@ -52,6 +52,6 @@ describe('genericDevice.getState client readiness', () => {
     }
     const device = new GenericDevice({ id: 'x', type: 'meter', name: 'M', log }, { log, _client: client } as any)
 
-    await expect(device.getState()).resolves.toEqual({ id: 'x', type: 'meter' })
+    await expect(device.getState()).resolves.toEqual({ id: 'x', type: 'meter', unreadable: true })
   })
 })
