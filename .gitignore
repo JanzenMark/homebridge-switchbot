@@ -8,3 +8,8 @@ coverage/
 .DS_Store
 src/.DS_Store
 .github/.DS_Store
+
+# Compiled output must not sit beside the sources: a `./x.js` import specifier
+# resolves to it instead of `x.ts`, so stale code is picked up silently.
+src/**/*.js
+src/**/*.js.map
