@@ -13,3 +13,6 @@ src/.DS_Store
 # resolves to it instead of `x.ts`, so stale code is picked up silently.
 src/**/*.js
 src/**/*.js.map
+
+# npm pack output: a build artifact, never source
+*.tgz
