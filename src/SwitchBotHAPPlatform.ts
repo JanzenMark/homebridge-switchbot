@@ -322,7 +322,7 @@ export class SwitchBotHAPPlatform {
                 // Remember it so a poll can push the new value. Without this the
                 // Home app only ever shows the value it was last told, which can
                 // be indefinitely stale.
-                const target = this.hapPushTargets.get(d.id) ?? { device: created, entries: [] }
+                const target = this.hapPushTargets.get(d.id) ?? { device: created?.instance ?? created, entries: [] }
                 target.entries.push({ service, characteristic: Characteristic, get: getterSetter.get })
                 this.hapPushTargets.set(d.id, target)
               }
