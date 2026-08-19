@@ -33,6 +33,15 @@
         "description": "Enable or disable BLE (Bluetooth Low Energy) support. If disabled, only OpenAPI (cloud) will be used.",
         "default": true
       },
+      "co2AbnormalThreshold": {
+        "title": "CO2 Abnormal Threshold (ppm)",
+        "type": "integer",
+        "default": 1000,
+        "minimum": 400,
+        "maximum": 5000,
+        "required": false,
+        "description": "Meter Pro (CO2) only. At or above this level HomeKit reports carbon dioxide as detected, which is what a \"Carbon Dioxide Detected\" automation triggers on. 1000 ppm is a common point for wanting ventilation; outdoor air sits near 420. Can be overridden per device."
+      },
       "devices": {
         "type": "array",
         "title": "Devices",

@@ -73,3 +73,47 @@ describe('meterDevice CO2 support', () => {
     await expect(get(device, 'HumiditySensor', 'CurrentRelativeHumidity')).resolves.toBe(55)
   })
 })
+
+describe('meterDevice CO2 threshold', () => {
+  function meterWithCfg(cfg: Record<string, unknown>, co2: number) {
+    const device = new MeterDevice(
+      { id: 'B0E9FED044E3', type: 'meter', deviceType: 'MeterPro(CO2)', name: 'Meter', log } as any,
+      { log, ...cfg } as any,
+    )
+    vi.spyOn(device, 'getState').mockResolvedValue({ temperature: 22, humidity: 50, co2 })
+    return device
+  }
+
+  function detected(device: MeterDevice) {
+    const service = device.createHAPAccessory(null).services.find((s: any) => s.type === 'CarbonDioxideSensor')
+    return service.characteristics.CarbonDioxideDetected.get()
+  }
+
+  it('defaults to 1000 ppm', async () => {
+    await expect(detected(meterWithCfg({}, 999))).resolves.toBe(0)
+    await expect(detected(meterWithCfg({}, 1000))).resolves.toBe(1)
+  })
+
+  it('honours a platform threshold', async () => {
+    await expect(detected(meterWithCfg({ co2AbnormalThreshold: 800 }, 799))).resolves.toBe(0)
+    await expect(detected(meterWithCfg({ co2AbnormalThreshold: 800 }, 800))).resolves.toBe(1)
+  })
+
+  it('lets a per-device threshold win over the platform one', async () => {
+    const cfg = {
+      co2AbnormalThreshold: 800,
+      devices: [{ deviceId: 'B0E9FED044E3', co2AbnormalThreshold: 1500 }],
+    }
+
+    await expect(detected(meterWithCfg(cfg, 1200))).resolves.toBe(0)
+    await expect(detected(meterWithCfg(cfg, 1500))).resolves.toBe(1)
+  })
+
+  it.each([['zero', 0], ['negative', -1], ['non-numeric', 'high'], ['absent', undefined]])(
+    'falls back to the default when the configured value is %s',
+    async (_label, value) => {
+      await expect(detected(meterWithCfg({ co2AbnormalThreshold: value }, 1000))).resolves.toBe(1)
+      await expect(detected(meterWithCfg({ co2AbnormalThreshold: value }, 999))).resolves.toBe(0)
+    },
+  )
+})

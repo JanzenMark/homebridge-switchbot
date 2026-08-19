@@ -1383,8 +1383,8 @@ export class RollerShadeDevice extends CurtainDevice {}
 
 export class Hub2Device extends GenericDevice {}
 
-/** CO2 level in ppm at or above which HomeKit is told the level is abnormal. */
-const CO2_ABNORMAL_PPM = 1000
+/** Default ppm at or above which HomeKit is told the CO2 level is abnormal. */
+const CO2_ABNORMAL_PPM_DEFAULT = 1000
 /** Battery percentage at or below which HomeKit is told the battery is low. */
 const BATTERY_LOW_PERCENT = 10
 /** HomeKit ChargingState.NOT_CHARGEABLE - these meters take replaceable cells. */
@@ -1398,6 +1398,25 @@ export class MeterDevice extends GenericDevice {
    */
   protected reportsCO2(): boolean {
     return /co2/i.test(String((this.opts as any)?.deviceType ?? ''))
+  }
+
+  /**
+   * The ppm at which HomeKit is told the level is abnormal, which drives the
+   * "Carbon Dioxide Detected" flag and any automation triggered by it. What
+   * counts as too high depends on the room and its use, so it is configurable.
+   * A per-device value wins over the platform value.
+   */
+  protected co2AbnormalThreshold(): number {
+    const devices = (this.cfg as any)?.devices ?? []
+    const cfgDev = devices.find((d: any) => d && d.deviceId === (this.opts as any)?.id)
+    const candidates = [cfgDev?.co2AbnormalThreshold, (this.cfg as any)?.co2AbnormalThreshold]
+    for (const candidate of candidates) {
+      const value = Number(candidate)
+      if (Number.isFinite(value) && value > 0) {
+        return value
+      }
+    }
+    return CO2_ABNORMAL_PPM_DEFAULT
   }
 
   createHAPAccessory(api: any) {
@@ -1464,7 +1483,7 @@ export class MeterDevice extends GenericDevice {
           CarbonDioxideDetected: {
             get: async () => {
               const level = await co2()
-              return level === undefined ? undefined : (level >= CO2_ABNORMAL_PPM ? 1 : 0)
+              return level === undefined ? undefined : (level >= this.co2AbnormalThreshold() ? 1 : 0)
             },
           },
         },

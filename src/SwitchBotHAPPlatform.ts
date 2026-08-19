@@ -499,7 +499,7 @@ export class SwitchBotHAPPlatform {
       }
     }
     if (pushed.length) {
-      this.log.info(`[HAP] Pushed ${pushed.length} values for ${id}: ${pushed.join(', ')}`)
+      this.log.debug?.(`[HAP] Pushed ${pushed.length} values for ${id}: ${pushed.join(', ')}`)
     }
   }
 
